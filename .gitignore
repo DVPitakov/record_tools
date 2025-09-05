@@ -1,0 +1,14 @@
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.bc
+*.lo
+*.la
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+

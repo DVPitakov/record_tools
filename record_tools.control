@@ -1,0 +1,5 @@
+# record_tools extension
+comment = 'adds function get_row_attr_as_text(row, attr_name) to get attr value as text from record'
+default_version = '1.0'
+module_pathname = '$libdir/record_tools'
+relocatable = true
