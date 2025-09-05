@@ -1,8 +1,5 @@
 #include "postgres.h"
 
-#include <ctype.h>
-#include <syslog.h>
-
 #include "access/htup_details.h"
 #include "access/tuptoaster.h"
 #include "catalog/pg_type.h"
