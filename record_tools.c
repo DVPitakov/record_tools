@@ -92,3 +92,69 @@ rtls_get_attr_as_text(PG_FUNCTION_ARGS)
 
 	PG_RETURN_TEXT_P(cstring_to_text(result));
 }
+
+
+PG_FUNCTION_INFO_V1(rtls_get_attr_names);
+Datum
+rtls_get_attr_names(PG_FUNCTION_ARGS)
+{
+	typedef struct
+	{
+		TupleDesc	tupdesc;
+		int			attnum;
+	} rtls_get_attr_names_fctx;
+
+	FuncCallContext *funcctx;
+	rtls_get_attr_names_fctx *fctx;
+
+	if(SRF_IS_FIRSTCALL())
+	{
+		MemoryContext oldcontext;
+
+		funcctx = SRF_FIRSTCALL_INIT();
+		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
+		Datum	record = PG_GETARG_DATUM(0);
+
+		fctx = (rtls_get_attr_names_fctx*) palloc(sizeof(rtls_get_attr_names_fctx));
+
+		HeapTupleHeader td = DatumGetHeapTupleHeader(record);
+
+		Oid		tupType = HeapTupleHeaderGetTypeId(td);
+		int32	tupTypmod = HeapTupleHeaderGetTypMod(td);
+
+		fctx->attnum = 0;
+		fctx->tupdesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+
+		funcctx->user_fctx = fctx;
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	funcctx = SRF_PERCALL_SETUP();
+	fctx = funcctx->user_fctx;
+
+	while (fctx->attnum < fctx->tupdesc->natts)
+	{
+		Datum		val;
+		bool		isnull;
+		char		*attname;
+		Form_pg_attribute att = TupleDescAttr(fctx->tupdesc, fctx->attnum);
+
+		if (att->attisdropped) {
+			fctx->attnum++;
+			continue;
+		}
+
+		attname = NameStr(att->attname);
+
+		Datum	result;
+		result = CStringGetTextDatum(attname);
+
+		fctx->attnum++;
+		SRF_RETURN_NEXT(funcctx, result);
+	}
+
+	ReleaseTupleDesc(fctx->tupdesc);
+	SRF_RETURN_DONE(funcctx);
+}
+
