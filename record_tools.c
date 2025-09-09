@@ -158,3 +158,81 @@ rtls_get_attr_names(PG_FUNCTION_ARGS)
 	SRF_RETURN_DONE(funcctx);
 }
 
+
+PG_FUNCTION_INFO_V1(rtls_set_attr);
+Datum
+rtls_set_attr(PG_FUNCTION_ARGS)
+{
+	Datum		composite = PG_GETARG_DATUM(0);
+
+	text*		attr_name_txt = PG_GETARG_TEXT_PP(1);
+	const char* attr_name = text_to_cstring(attr_name_txt);
+
+	text*		attr_value_txt = PG_GETARG_TEXT_PP(2);
+	const char* attr_value = text_to_cstring(attr_value_txt);
+
+	Datum		result;
+
+	HeapTupleHeader td;
+	Oid			tupType;
+	int32		tupTypmod;
+	TupleDesc	tupdesc;
+	HeapTupleData tmptup,
+	           *tuple;
+	int			i;
+
+	td = DatumGetHeapTupleHeader(composite);
+
+	/* Extract rowtype info and find a tupdesc */
+	tupType = HeapTupleHeaderGetTypeId(td);
+	tupTypmod = HeapTupleHeaderGetTypMod(td);
+	tupdesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+
+	/* Build a temporary HeapTuple control structure */
+	tmptup.t_len = HeapTupleHeaderGetDatumLength(td);
+	tmptup.t_data = td;
+	tuple = &tmptup;
+
+	Datum		*resultValues;
+	bool		*resultNulls;
+	HeapTuple	resultTuple;
+
+	resultValues	= (Datum*) palloc(tupdesc->natts * sizeof(Datum));
+	resultNulls		= (bool*) palloc(tupdesc->natts * sizeof(bool));
+
+	heap_deform_tuple(tuple, tupdesc, resultValues, resultNulls);
+
+	for (i = 0; i < tupdesc->natts; i++)
+	{
+		Datum		val;
+		bool		isnull;
+		char		*attname;
+		Form_pg_attribute att = TupleDescAttr(tupdesc, i);
+
+		if (att->attisdropped)
+			continue;
+
+		attname = NameStr(att->attname);
+
+		if(strcmp(attname, attr_name) != 0)
+			continue;
+
+		Oid inputFuncOid;
+		Oid typIOParam;
+
+		FmgrInfo finfo;
+		getTypeInputInfo(att->atttypid, &inputFuncOid, &typIOParam);
+
+		fmgr_info(inputFuncOid, &finfo);
+
+		resultValues[i] = InputFunctionCall(&finfo, attr_value, typIOParam, tupTypmod);
+		break;
+	}
+
+
+	resultTuple	= heap_form_tuple(tupdesc, resultValues, resultNulls);
+	result		= HeapTupleGetDatum(resultTuple);
+
+	ReleaseTupleDesc(tupdesc);
+	return result;
+}
